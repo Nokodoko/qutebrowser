@@ -3,6 +3,62 @@
 # qute://help/configuring.html
 # qute://help/settings.html
 
+from qutebrowser.config import configdata
+
+# Duration of the d/u half-page smooth scroll. Chromium's own smooth scroll
+# (scrolling.smooth) runs about 270 ms and has no speed setting, so d/u
+# animate in page JavaScript instead: an ease-out over SMOOTH_SCROLL_MS. A
+# press during an animation extends its target instead of fighting it.
+SMOOTH_SCROLL_MS = 120
+
+
+def smooth_scroll(fraction):
+    """Get a jseval command scrolling by fraction of the viewport height.
+
+    The scroll target is resolved at press time, not assumed to be the window:
+    a page like LinkedIn scrolls an inner overflow container, where
+    window.scrollTo is a no-op (j/k still work there because they are fake
+    arrow keys, which Chromium routes to the focused scrollable element). So
+    walk up from the element at the viewport centre (jseval cannot see the real
+    pointer) to the nearest one that actually scrolls vertically -- the same
+    choice a mouse wheel makes -- and fall back to the document when nothing
+    under it scrolls. The animation state lives on the chosen element, so a
+    press during an animation extends that element's target instead of
+    fighting it.
+    """
+    return (
+        'jseval --quiet (function (dy, ms) {'
+        ' function scrollable(el) {'
+        '  if (!el || el === document.body || el === document.documentElement)'
+        ' { return null; }'
+        '  var oy = getComputedStyle(el).overflowY;'
+        '  if (oy !== "auto" && oy !== "scroll" && oy !== "overlay") { return null; }'
+        '  return el.scrollHeight > el.clientHeight + 1 ? el : null;'
+        ' }'
+        ' var el = document.elementFromPoint(window.innerWidth / 2,'
+        ' window.innerHeight / 2), box = null;'
+        ' for (var n = el; n && !box; n = n.parentElement) { box = scrollable(n); }'
+        ' var doc = document.scrollingElement || document.documentElement;'
+        ' var t = box || doc;'
+        ' var useDoc = t === doc;'
+        ' var y0 = useDoc ? (window.scrollY || doc.scrollTop) : t.scrollTop;'
+        ' var a = t.__qbScroll;'
+        ' if (a) { cancelAnimationFrame(a.raf); }'
+        ' var target = (a ? a.target : y0) + dy;'
+        ' var t0 = performance.now();'
+        ' var s = t.__qbScroll = {target: target, raf: 0};'
+        ' function step(now) {'
+        '  var p = Math.min((now - t0) / ms, 1);'
+        '  var v = y0 + (target - y0) * (1 - Math.pow(1 - p, 3));'
+        '  if (useDoc) { window.scrollTo({top: v, behavior: "instant"}); }'
+        '  else { t.scrollTop = v; }'
+        '  if (p < 1) { s.raf = requestAnimationFrame(step); }'
+        '  else { t.__qbScroll = null; }'
+        ' }'
+        ' s.raf = requestAnimationFrame(step);'
+        '})(window.innerHeight * %s, %d)' % (fraction, SMOOTH_SCROLL_MS))
+
+
 # This is here so configs done via the GUI are still loaded.
 # Remove it to not load settings done via the GUI.
 config.load_autoconfig()
@@ -475,19 +531,7 @@ c.colors.webpage.darkmode.contrast = 0.0
 # `colors.webpage.darkmode.threshold.background` to 205.  - "With
 # selective inversion of everything": Combines the two variants   above.
 ## Type: Bool
-c.colors.webpage.darkmode.enabled = True
-
-# Render all colors as grayscale. This only has an effect when
-# `colors.webpage.darkmode.algorithm` is set to `lightness-hsl` or
-# `brightness-rgb`.
-## Type: Bool
-c.colors.webpage.darkmode.grayscale.all = False
-
-# Desaturation factor for images in dark mode. If set to 0, images are
-# left as-is. If set to 1, images are completely grayscale. Values
-# between 0 and 1 desaturate the colors accordingly.
-## Type: Float
-c.colors.webpage.darkmode.grayscale.images = 0.0
+c.colors.webpage.darkmode.enabled = False
 
 # Which images to apply dark mode to.
 ## Type: String
@@ -517,11 +561,14 @@ c.colors.webpage.darkmode.threshold.background = 0
 # left as in the original, non-dark-mode page. Set to 256 to always
 # invert text color or to 0 to never invert text color.
 ## Type: Int
-c.colors.webpage.darkmode.threshold.text = 256
+c.colors.webpage.darkmode.threshold.foreground = 256
 
-# Force `prefers-color-scheme: dark` colors for websites.
-## Type: Bool
-####c.colors.webpage.prefers_color_scheme_dark = False
+# Value to use for `prefers-color-scheme:` for websites. 'dark' makes sites
+# that ship a dark theme (YouTube, GitHub, Gmail, Datadog) use it, which the
+# picom keep_foreground shader needs for transparency; 'auto' follows the
+# system, which reports light here. Requires a restart.
+## Type: String
+c.colors.webpage.preferred_color_scheme = 'dark'
 
 # Number of commands to save in the command history. 0: no history / -1:
 # unlimited
@@ -761,8 +808,8 @@ c.content.javascript.alert = True
 # Allow JavaScript to read from or write to the clipboard. With
 # QtWebEngine, writing the clipboard as response to a user interaction
 # is always allowed.
-## Type: Bool
-c.content.javascript.can_access_clipboard = False
+## Type: String
+c.content.javascript.clipboard = 'none'
 
 # Allow JavaScript to open new tabs without user interaction.
 ## Type: Bool
@@ -779,8 +826,8 @@ c.content.javascript.enabled = True
 # following levels are valid: `none`, `debug`, `info`, `warning`,
 # `error`.
 ## Type: Dict
-c.content.javascript.log = {'unknown': 'debug',
-                            'info': 'debug', 'warning': 'debug', 'error': 'debug'}
+c.content.javascript.log = {'unknown': 'none',
+                            'info': 'none', 'warning': 'debug', 'error': 'debug'}
 
 # Use the standard JavaScript modal dialog for `alert()` and
 # `confirm()`.
@@ -1296,6 +1343,18 @@ c.qt.force_platform = None
 ## Type: String
 c.qt.force_platformtheme = None
 
+# Renderer accessibility: upstream default ('auto' only passes
+# --disable-renderer-accessibility on QtWebEngine 6.10.1, nothing on 6.11.2).
+# Measured 2026-10-19 on 6.11.2: QtWebEngine mirrors the page's accessibility
+# tree as bare QObject children of the view whether this flag is 'always' or
+# 'never' (github profile: 1757 vs 1097 nodes, same main-thread CPU while
+# scrolling, ~14 child events/s idle on YouTube). The flag does not stop the
+# mirror, so it buys nothing; the 12k-node stalls came from the icarus web UI
+# SPA growing its DOM, and the node count tracks the live DOM (it drops again
+# on navigation). The AT-SPI bus is still off, so nothing is exported over
+# D-Bus. Requires a restart.
+c.qt.workarounds.disable_accessibility = 'auto'
+
 # Force software rendering for QtWebEngine. This is needed for
 # QtWebEngine to work with Nouveau drivers and can be useful in other
 # scenarios related to graphic issues.
@@ -1342,12 +1401,13 @@ c.qt.highdpi = False
 # - always: Always show the scrollbar.
 # - never: Never show the scrollbar.
 # - when-searching: Show the scrollbar when searching for text in the webpage. With the QtWebKit backend, this is equal to `never`.
-c.scrolling.bar = "when-searching"
+c.scrolling.bar = "never"
 
 # Enable smooth scrolling for web pages. Note smooth scrolling does not
-# work with the `:scroll-px` command.
+# work with the `:scroll-px` command. It also gates the smooth
+# `scrollBy` behind the `d`/`u` bindings: off, those jump instantly.
 ## Type: Bool
-c.scrolling.smooth = False
+c.scrolling.smooth = True
 
 # When to find text on a page case-insensitively.
 ## Type: IgnoreCase
@@ -1374,7 +1434,7 @@ c.session.default_name = None
 
 # Load a restored tab as soon as it takes focus.
 ## Type: Bool
-c.session.lazy_restore = False
+c.session.lazy_restore = True
 
 # Languages to use for spell checking. You can check for available
 # languages and install dictionaries using scripts/dictcli.py. Run the
@@ -1527,7 +1587,9 @@ c.tabs.min_width = -1
 # - persist: Retain the current mode.
 # - restore: Restore previously saved mode.
 # - normal: Always revert to normal mode.
-c.tabs.mode_on_change = 'normal'
+# persist: the leader guard at the end of this file is one state for the whole
+# window, so switching tabs keeps whichever side of it is active.
+c.tabs.mode_on_change = 'persist'
 
 # Switch between tabs using the mouse wheel.
 ## Type: Bool
@@ -1797,13 +1859,13 @@ config.bind(
 # Bindings for normal mode
 config.bind('Fc', 'config-cycle tabs.show always never')
 config.bind('Fb', 'config-cycle statusbar.hide')
-config.bind('Fx', 'set tabs.show always;; later 5000 set tabs.show switching')
+config.bind('Fx', 'set tabs.show always;; cmd-later 5000 set tabs.show switching')
 config.bind("'", 'mode-enter jump_mark')
 config.bind('+', 'zoom-in')
 config.bind('-', 'zoom-out')
-config.bind('.', 'repeat-command')
-config.bind('/', 'set-cmd-text /')
-config.bind(':', 'set-cmd-text :')
+config.bind('.', 'cmd-repeat-last')
+config.bind('/', 'cmd-set-text /')
+config.bind(':', 'cmd-set-text :')
 config.bind(';I', 'hint images tab')
 config.bind(';O', 'hint links fill :open -t -r {hint-url}')
 config.bind(';R', 'hint --rapid links window')
@@ -1837,7 +1899,7 @@ config.bind('<Ctrl-N>', 'open -w')
 config.bind('<Ctrl-PgDown>', 'tab-next')
 config.bind('<Ctrl-PgUp>', 'tab-prev')
 config.bind('<Ctrl-Q>', 'quit')
-config.bind('<Ctrl-Return>', 'follow-selected -t')
+config.bind('<Ctrl-Return>', 'selection-follow -t')
 config.bind('<Ctrl-Shift-N>', 'open -p')
 config.bind('<Ctrl-Shift-T>', 'undo')
 config.bind('<Ctrl-Shift-Tab>', 'nop')
@@ -1857,13 +1919,13 @@ config.bind('<Ctrl-s>', 'stop')
 config.bind('<Escape>', 'clear-keychain ;; search ;; fullscreen --leave')
 config.bind('<F11>', 'fullscreen')
 config.bind('<F5>', 'reload')
-config.bind('<Return>', 'follow-selected')
+config.bind('<Return>', 'selection-follow')
 config.bind('<back>', 'back')
 config.bind('<forward>', 'forward')
 config.bind('=', 'zoom')
-config.bind('?', 'set-cmd-text ?')
-config.bind('@', 'run-macro')
-config.bind('B', 'set-cmd-text -s :quickmark-load -t')
+config.bind('?', 'cmd-set-text ?')
+config.bind('@', 'macro-run')
+config.bind('B', 'cmd-set-text -s :quickmark-load -t')
 config.bind('x', 'tab-close -o')
 config.bind('F', 'hint all tab')
 config.bind('G', 'scroll-to-perc')
@@ -1873,7 +1935,7 @@ config.bind('J', 'tab-prev')
 config.bind('L', 'forward')
 config.bind('M', 'bookmark-add')
 config.bind('N', 'search-prev')
-config.bind('O', 'set-cmd-text -s :open -t')
+config.bind('O', 'cmd-set-text -s :open -t')
 config.bind('PP', 'open -t -- {primary}')
 config.bind('Pp', 'open -t -- {clipboard}')
 config.bind('R', 'reload -f')
@@ -1889,31 +1951,31 @@ config.bind('[[', 'navigate prev')
 config.bind(']]', 'navigate next')
 config.bind('`', 'mode-enter set_mark')
 config.bind('ad', 'download-cancel')
-config.bind('b', 'set-cmd-text -s :quickmark-load')
+config.bind('b', 'cmd-set-text -s :quickmark-load')
 config.bind('cd', 'download-clear')
 config.bind('co', 'tab-only')
-config.bind('d', 'tab-close')
+config.bind('d', smooth_scroll(0.5))
 config.bind('f', 'hint')
 config.bind('g$', 'tab-focus -1')
 config.bind('g0', 'tab-focus 1')
-config.bind('gB', 'set-cmd-text -s :bookmark-load -t')
+config.bind('gB', 'cmd-set-text -s :bookmark-load -t')
 config.bind('yt', 'tab-clone')
 #config.bind('gd', 'download')
 config.bind('gD', 'tab-give')
 config.bind('gd', 'tab-take')
-config.bind('gO', 'set-cmd-text :open -t -r {url:pretty}')
+config.bind('gO', 'cmd-set-text :open -t -r {url:pretty}')
 config.bind('gU', 'navigate up -t')
 config.bind('g^', 'tab-focus 1')
 config.bind('ga', 'open -t')
-config.bind('gb', 'set-cmd-text -s :bookmark-load')
+config.bind('gb', 'cmd-set-text -s :bookmark-load')
 config.bind('gf', 'view-source')
 config.bind('gg', 'scroll-to-perc 0')
 config.bind('gi', 'hint inputs --first')
 config.bind('gl', 'tab-move -')
 config.bind('gm', 'tab-move')
-config.bind('go', 'set-cmd-text :open {url:pretty}')
+config.bind('go', 'cmd-set-text :open {url:pretty}')
 config.bind('gr', 'tab-move +')
-config.bind('T', 'set-cmd-text -s :tab-select')
+config.bind('T', 'cmd-set-text -s :tab-select')
 config.bind('gu', 'navigate up')
 config.bind('h', 'scroll left')
 config.bind('i', 'mode-enter insert')
@@ -1922,15 +1984,15 @@ config.bind('k', 'scroll up')
 config.bind('l', 'scroll right')
 config.bind('m', 'quickmark-save')
 config.bind('n', 'search-next')
-config.bind('o', 'set-cmd-text -s :open')
+config.bind('o', 'cmd-set-text -s :open')
 config.bind('pP', 'open -- {primary}')
 config.bind('pp', 'open -- {clipboard}')
-config.bind('q', 'record-macro')
+config.bind('q', 'macro-record')
 config.bind('r', 'reload')
 config.bind('sf', 'save')
-config.bind('sk', 'set-cmd-text -s :bind')
-config.bind('sl', 'set-cmd-text -s :set -t')
-config.bind('ss', 'set-cmd-text -s :set')
+config.bind('sk', 'cmd-set-text -s :bind')
+config.bind('sl', 'cmd-set-text -s :set -t')
+config.bind('ss', 'cmd-set-text -s :set')
 config.bind(
     'tIH', 'config-cycle -p -u *://*.{url:host}/* content.images ;; reload')
 config.bind(
@@ -1965,22 +2027,22 @@ config.bind(
     'tsh', 'config-cycle -p -t -u *://{url:host}/* content.javascript.enabled ;; reload')
 config.bind(
     'tsu', 'config-cycle -p -t -u {url} content.javascript.enabled ;; reload')
-config.bind('u', 'undo')
+config.bind('u', smooth_scroll(-0.5))
 config.bind('v', 'mode-enter caret')
-config.bind('wB', 'set-cmd-text -s :bookmark-load -w')
-config.bind('wO', 'set-cmd-text :open -w {url:pretty}')
+config.bind('wB', 'cmd-set-text -s :bookmark-load -w')
+config.bind('wO', 'cmd-set-text :open -w {url:pretty}')
 config.bind('wP', 'open -w -- {primary}')
-config.bind('wb', 'set-cmd-text -s :quickmark-load -w')
+config.bind('wb', 'cmd-set-text -s :quickmark-load -w')
 config.bind('wf', 'hint all window')
 config.bind('wh', 'back -w')
 config.bind('wi', 'devtools')
 
 ##config.bind('wIF', 'devtools-focus')
 config.bind('wl', 'forward -w')
-config.bind('wo', 'set-cmd-text -s :open -w')
+config.bind('wo', 'cmd-set-text -s :open -w')
 config.bind('wp', 'open -w -- {clipboard}')
-config.bind('xO', 'set-cmd-text :open -b -r {url:pretty}')
-config.bind('xo', 'set-cmd-text -s :open -b')
+config.bind('xO', 'cmd-set-text :open -b -r {url:pretty}')
+config.bind('xo', 'cmd-set-text -s :open -b')
 config.bind('yD', 'yank domain -s')
 config.bind('yM', 'yank inline [{title}]({url}) -s')
 config.bind('yP', 'yank pretty-url -s')
@@ -1997,16 +2059,16 @@ config.bind('}}', 'navigate next -t')
 # Bindings for caret mode
 config.bind('$', 'move-to-end-of-line', mode='caret')
 config.bind('0', 'move-to-start-of-line', mode='caret')
-config.bind('<Ctrl-Space>', 'drop-selection', mode='caret')
+config.bind('<Ctrl-Space>', 'selection-drop', mode='caret')
 config.bind('<Escape>', 'mode-leave', mode='caret')
 config.bind('<Return>', 'yank selection', mode='caret')
-config.bind('<Space>', 'toggle-selection', mode='caret')
+config.bind('<Space>', 'selection-toggle', mode='caret')
 config.bind('G', 'move-to-end-of-document', mode='caret')
 config.bind('H', 'scroll left', mode='caret')
 config.bind('J', 'scroll down', mode='caret')
 config.bind('K', 'scroll up', mode='caret')
 config.bind('L', 'scroll right', mode='caret')
-config.bind('V', 'toggle-selection --line', mode='caret')
+config.bind('V', 'selection-toggle --line', mode='caret')
 config.bind('Y', 'yank selection -s', mode='caret')
 config.bind('[', 'move-to-start-of-prev-block', mode='caret')
 config.bind(']', 'move-to-start-of-next-block', mode='caret')
@@ -2018,8 +2080,8 @@ config.bind('h', 'move-to-prev-char', mode='caret')
 config.bind('j', 'move-to-next-line', mode='caret')
 config.bind('k', 'move-to-prev-line', mode='caret')
 config.bind('l', 'move-to-next-char', mode='caret')
-config.bind('o', 'reverse-selection', mode='caret')
-config.bind('v', 'toggle-selection', mode='caret')
+config.bind('o', 'selection-reverse', mode='caret')
+config.bind('v', 'selection-toggle', mode='caret')
 config.bind('w', 'move-to-next-word', mode='caret')
 config.bind('y', 'yank selection', mode='caret')
 config.bind('{', 'move-to-end-of-prev-block', mode='caret')
@@ -2047,7 +2109,7 @@ config.bind('<Ctrl-Shift-Tab>',
             'completion-item-focus prev-category', mode='command')
 config.bind('<Ctrl-Tab>', 'completion-item-focus next-category', mode='command')
 config.bind('<Ctrl-U>', 'rl-unix-line-discard', mode='command')
-config.bind('<Ctrl-W>', 'rl-unix-word-rubout', mode='command')
+config.bind('<Ctrl-W>', 'rl-rubout " "', mode='command')
 config.bind('<Ctrl-Y>', 'rl-yank', mode='command')
 config.bind('<Down>', 'completion-item-focus --history next', mode='command')
 config.bind('<Escape>', 'mode-leave', mode='command')
@@ -2062,15 +2124,19 @@ config.bind('<Ctrl-B>', 'hint all tab-bg', mode='hint')
 config.bind('<Ctrl-F>', 'hint links', mode='hint')
 config.bind('<Ctrl-R>', 'hint --rapid links tab-bg', mode='hint')
 config.bind('<Escape>', 'mode-leave', mode='hint')
-config.bind('<Return>', 'follow-hint', mode='hint')
+config.bind('<Return>', 'hint-follow', mode='hint')
 
 # Bindings for insert mode
-config.bind('<Ctrl-E>', 'open-editor', mode='insert')
+config.bind('<Ctrl-E>', 'edit-text', mode='insert')
 config.bind('<Escape>', 'mode-leave', mode='insert')
 config.bind('<Shift-Ins>', 'insert-text -- {primary}', mode='insert')
 
 # Bindings for passthrough mode
-config.bind('<Shift-Escape>', 'mode-leave', mode='passthrough')
+# Passthrough is the LOCKED state of the leader guard at the end of this file;
+# the leader is the only way out, so the <Shift-Escape> exit is shadowed with
+# None. config.unbind cannot do it: it drops the autoconfig.yml copy, which
+# re-exposes the identical default binding underneath.
+c.bindings.commands.setdefault('passthrough', {})['<Shift+Escape>'] = None
 
 
 # Bindings for prompt mode
@@ -2089,7 +2155,7 @@ config.bind('<Ctrl-H>', 'rl-backward-delete-char', mode='prompt')
 config.bind('<Ctrl-K>', 'rl-kill-line', mode='prompt')
 config.bind('<Ctrl-P>', 'prompt-open-download --pdfjs', mode='prompt')
 config.bind('<Ctrl-U>', 'rl-unix-line-discard', mode='prompt')
-config.bind('<Ctrl-W>', 'rl-unix-word-rubout', mode='prompt')
+config.bind('<Ctrl-W>', 'rl-rubout " "', mode='prompt')
 config.bind('<Ctrl-X>', 'prompt-open-download', mode='prompt')
 config.bind('<Ctrl-Y>', 'rl-yank', mode='prompt')
 config.bind('<Down>', 'prompt-item-focus next', mode='prompt')
@@ -2113,4 +2179,218 @@ config.bind('Y', 'prompt-accept --save yes', mode='yesno')
 config.bind('n', 'prompt-accept no', mode='yesno')
 config.bind('y', 'prompt-accept yes', mode='yesno')
 
-config.set("colors.webpage.darkmode.enabled", True)
+config.bind('x', 'tab-close')
+
+config.bind('ZZ', 'config-source')
+
+# Leader guard: Alt+Super+Space. Meh and Ctrl+Space belong to icarus and Super
+# to dwm; neither dwm nor sxhkd grabs Alt+Super+Space. qutebrowser cannot define
+# a named mode, so passthrough is ENGAGE (every key reaches the page; the
+# statusbar of the ~/Programs/qutebrowser build labels it so) and normal is
+# "qutebrowser mode" (bindings live). Super is Qt's Meta modifier on X11.
+# The state belongs to the window, not the tab: only the leader changes it, so
+# it survives tab switches (tabs.mode_on_change = persist) and page loads
+# (input.mode_override is unset; it re-entered passthrough on both). A new
+# window starts engaged (input.default_mode, same source build; stock
+# qutebrowser starts in normal). Insert and caret are entered only while disengaged
+# (clicking or loading into a text field auto-enters insert; v enters caret),
+# so the leader engages from there too -- unbound, it was swallowed until Esc.
+# Disengaging lands in TILE mode (tiling build), not normal: moving between
+# tabs is the usual reason to leave the page, and `a` there re-engages while
+# <Esc> drops to normal. The stock build has no tile mode, so it falls back
+# to mode-leave. Regression test: tests/test_leader_guard.py.
+if 'tabs.tiling.layout' in configdata.DATA:
+    config.bind('<Alt+Meta+Space>', 'mode-enter tile', mode='passthrough')
+else:
+    config.bind('<Alt+Meta+Space>', 'mode-leave', mode='passthrough')
+_unlocked = ['normal', 'insert', 'caret']
+if 'tabs.tiling.layout' in configdata.DATA:
+    _unlocked += ['tile', 'bitwise']
+for mode in _unlocked:
+    config.bind('<Alt+Meta+Space>', 'mode-enter passthrough', mode=mode)
+if 'input.default_mode' in configdata.DATA:
+    config.set('input.default_mode', 'passthrough')
+
+# Leader: <Space>. Space is unbound in normal mode by default (it is bound in
+# caret mode, a different mode, so that binding is untouched), so a <Space>...
+# chain is reachable there: a lone <Space> stays pending for
+# input.partial_timeout and is then dropped. <Shift+Space> (tab-select) is a
+# distinct key in the trie, not a <Space> chain. Binding <Space> itself to a
+# command would shadow every <Space>x chain, so it stays unbound -- the leader
+# only exists as a prefix.
+#
+# Tab bar shown; <Space>b (normal mode, so behind the leader guard) toggles
+# it. <Space>t / <Space>T enter tile / bitwise mode below.
+c.tabs.show = 'always'
+config.bind('<Space>b', 'config-cycle tabs.show always never')
+# <Space>r restarts, keeping the session (the :restart command saves it to the
+# _restart session and respawns with --json-args).
+config.bind('<Space>r', 'restart')
+
+# dwm-style tab tiling (the ~/Programs/qutebrowser build, branch
+# n0ko/statusbar-segments). Tabs are clients with a 9-bit tag mask; the
+# window views a tagset; tile = master/stack, monocle = stock one-tab view.
+# Two key modes carry the dwm keys (defaults in bindings.default of that
+# build, so nothing is bound here beyond the entry points):
+#   <Space>t  -> tile mode:    1-9 view tag, 0 view all, <Tab> previous
+#                              tagset, f tile/monocle, j/k focus through the
+#                              visible tiles, <Return> zoom, h/l mfact,
+#                              I/D nmaster, <Up>/<Down> and u/d scroll the
+#                              page, T -> bitwise mode, <Esc> leaves to
+#                              normal, a (bound here) re-engages
+#   <Space>T  -> bitwise mode: 1-9 toggle that tag in the view (the matching
+#                              tabs appear in the stack as you press), 0 all,
+#                              <Return> back to tile mode, <Esc> leaves
+# Guarded so the stock build (no tabs.tiling.*) still sources this file.
+if 'tabs.tiling.layout' in configdata.DATA:
+    c.tabs.tiling.layout = 'tile'
+    c.tabs.tiling.mfact = 0.55
+    c.tabs.tiling.nmaster = 1
+    config.bind('<Space>t', 'mode-enter tile')
+    config.bind('<Space>T', 'mode-enter bitwise')
+    # a: back to the page (ENGAGE); the leader above drops into tile mode.
+    config.bind('a', 'mode-enter passthrough', mode='tile')
+    # Send the current tab to a tag from tile mode: s then the digit.
+    for _n in range(1, 10):
+        config.bind(f's{_n}', f'tag {_n}', mode='tile')
+    # dwm rules: a tab whose first real page matches a pattern starts on that
+    # tag (tabs.tiling.rule_tag, pattern-scoped; evaluated once per tab, a
+    # full tag spills to the next with room, session restore keeps saved
+    # tags). A foreground tab pulls the view to its tag
+    # (tabs.tiling.rule_follow); background tabs never do. Add rows here:
+    #     'youtube.com': 2,
+    TAG_RULES: dict[str, int] = {
+    }
+    for _pattern, _tag in TAG_RULES.items():
+        config.set('tabs.tiling.rule_tag', _tag, _pattern)
+
+# Lualine-style statusbar in the tokyodark palette (Neovim's colorscheme, from
+# tokyodark.nvim lua/lualine/themes/tokyodark.lua). These override the stock
+# statusbar colors set earlier in this file. The mode color is lualine's bold
+# section-a "pill"; with statusbar.segments (the ~/Programs/qutebrowser build,
+# branch n0ko/statusbar-segments) it is painted only behind each widget's text
+# and the rest of the bar stays dark. Stock qutebrowser has no such option and
+# paints the pill across the whole bar. The URL text is dark so it reads on
+# every pill. Mode map: normal=green (lualine normal), insert=blue,
+# caret=purple (visual), command=yellow; passthrough -- the locked state of the
+# leader guard, no vim analog -- takes the palette's cyan.
+TOKYODARK = {
+    'bg0': '#11121D', 'bg1': '#1A1B2A', 'bg2': '#212234', 'bg3': '#353945',
+    'bg4': '#4A5057',
+    'fg': '#A0A8CD', 'diff_red': '#773440',
+    'yellow': '#D7A65F', 'green': '#95C561', 'blue': '#7199EE',
+    'cyan': '#38A89D', 'purple': '#A485DD',
+}
+PILLS = {
+    'normal': 'green', 'insert': 'blue', 'passthrough': 'cyan',
+    'caret': 'purple', 'caret.selection': 'purple',
+    'command': 'yellow', 'command.private': 'yellow',
+}
+for mode, color in PILLS.items():
+    config.set(f'colors.statusbar.{mode}.bg', TOKYODARK[color])
+    config.set(f'colors.statusbar.{mode}.fg', TOKYODARK['bg1'])
+c.colors.statusbar.private.bg = TOKYODARK['bg4']
+c.colors.statusbar.private.fg = TOKYODARK['fg']
+c.colors.statusbar.progress.bg = TOKYODARK['bg1']
+c.colors.statusbar.url.fg = TOKYODARK['bg0']
+c.colors.statusbar.url.success.http.fg = TOKYODARK['bg0']
+c.colors.statusbar.url.success.https.fg = TOKYODARK['bg0']
+c.colors.statusbar.url.hover.fg = TOKYODARK['bg3']
+c.colors.statusbar.url.warn.fg = TOKYODARK['diff_red']
+c.colors.statusbar.url.error.fg = TOKYODARK['diff_red']
+if 'statusbar.segments' in configdata.DATA:
+    config.set('statusbar.segments', True)
+    config.set('colors.statusbar.segments.bg', TOKYODARK['bg1'])
+    config.set('colors.statusbar.segments.fg', TOKYODARK['fg'])
+c.fonts.statusbar = 'bold 10pt "VictorMono Nerd Font"'
+c.fonts.tabs.unselected = '10pt "VictorMono Nerd Font"'
+c.statusbar.padding = {'top': 3, 'bottom': 3, 'left': 8, 'right': 8}
+c.statusbar.widgets = ['keypress', 'search_match', 'url', 'scroll',
+                       'history', 'tabs', 'progress', 'clock:%H:%M']
+
+# Powerline tabs in the same palette: the selected tab is lualine's green
+# section-a pill, unselected tabs alternate bg3/bg2 so every chevron shows
+# against its neighbour, and the bar behind them is the statusbar's bg1.
+# tabs.powerline (the chevrons) exists only in the ~/Programs/qutebrowser
+# build, branch n0ko/statusbar-segments; stock qutebrowser draws plain tabs.
+# The load indicator stripe is off: its colors fight the segments.
+if 'tabs.powerline' in configdata.DATA:
+    config.set('tabs.powerline', True)
+c.tabs.indicator.width = 0
+c.colors.tabs.bar.bg = TOKYODARK['bg1']
+for prefix in ['colors.tabs', 'colors.tabs.pinned']:
+    for parity, bg in [('odd', 'bg3'), ('even', 'bg2')]:
+        config.set(f'{prefix}.{parity}.bg', TOKYODARK[bg])
+        config.set(f'{prefix}.{parity}.fg', TOKYODARK['fg'])
+        config.set(f'{prefix}.selected.{parity}.bg', TOKYODARK['green'])
+        config.set(f'{prefix}.selected.{parity}.fg', TOKYODARK['bg1'])
+c.fonts.tabs.selected = 'bold 10pt "VictorMono Nerd Font"'
+
+# Tiled tabs: a thin dwm-style border around every tile, the focused one in
+# the same green as the selected tab-bar pill so it is apparent which tile has
+# focus. Unfocused tiles get the dark bg3 frame, which the picom
+# keep_foreground shader renders as transparent anyway. Fork-only option.
+if 'tabs.tiling.border' in configdata.DATA:
+    c.tabs.tiling.border = 1
+    config.set('colors.tabs.tiling.border.focused', TOKYODARK['green'])
+    config.set('colors.tabs.tiling.border.unfocused', TOKYODARK['bg3'])
+
+# Vimium C migration (Vivaldi, read live from chrome.storage on 2026-10-09).
+# Each `map KEY createTab url=...` opens URL in a new tab, as there. A bound
+# key fires at once in qutebrowser and hides every longer binding starting
+# with it, so the single keys D (tab-close -o), N (search-prev) and
+# M (bookmark-add) are unbound to make D*/NN/N0/Ma/Mu reachable, and a hides
+# ad (download-cancel), al and ag, which are unbound rather than left dead.
+# sk, l and U replace :bind, scroll right and undo -w. Not migrated: cv
+# (Vimium's own options page) and <a-s-f> (a window.open bookmarklet that
+# content.javascript.can_open_tabs_automatically = False blocks).
+VIMIUM_TABS = {
+    'A': 'https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1',
+    'Dp': 'https://www.datadoghq.com/pricing/',
+    'cr': 'https://www.crunchyroll.com/',
+    'cl': 'https://code.claude.com/docs/en/overview',
+    'sk': 'https://www.skool.com/prompt-to-prod',
+    'DD': 'https://app.ddog-gov.com/personal-settings/organizations',
+    'DO': 'https://app.datadoghq.com/personal-settings/organizations',
+    'Dd': 'https://app.datadoghq.com/help/quick_start',
+    'Df': 'https://docs.datadoghq.com/integrations/ecs_fargate/?tab=webui#trace-collection',
+    'De': 'https://app.ddog-gov.com/event/explorer?cols=&messageDisplay=expanded-lg&options=&refresh_mode=sliding&sort=DESC&view=all&from_ts=1760447121813&to_ts=1760448021813&live=true',
+    'DT': 'https://app.ddog-gov.com/apm/traces?query=env%3Aproduction&agg_m=count&agg_m_source=base&agg_t=count&cols=core_service%2Ccore_resource_name%2Clog_duration%2Clog_http.method%2Clog_http.status_code&fromUser=false&historicalData=false&messageDisplay=inline&query_translation_version=v0&sort=desc&spanType=all&storage=hot&view=spans&start=1760448688014&end=1760449588014&paused=false',
+    'Dt': 'https://app.datadoghq.com/help/quick_start',
+    'Do': 'https://app.ddog-gov.com/personal-settings/organizations',
+    'E': 'https://outlook.office.com/mail',
+    'NN': 'https://github.com/Nokodoko',
+    'N0': 'https://n0kos.com/',
+    'Ma': 'https://mail.google.com/mail/u/1/#inbox',
+    'Mu': 'https://music.youtube.com',
+    'DP': 'https://www.datadoghq.com/product-preview/',
+    'U': 'https://eccoselect.unanet.biz',
+    'Y': 'https://youtube.com',
+    'a': 'https://app.ddog-gov.com/notebook/15122/forest-service-agenda',
+    'l': 'https://www.linkedin.com/feed/',
+    'W': 'https://www.wallhaven.cc',
+}
+# Shadowed with None, not config.unbind: unbinding a key that autoconfig.yml
+# also binds only drops that copy and re-exposes the identical default.
+for key in ['D', 'N', 'M', 'ad', 'al', 'ag']:
+    c.bindings.commands.setdefault('normal', {})[key] = None
+for key, url in VIMIUM_TABS.items():
+    config.bind(key, 'open -t ' + url)
+# Vimium's <s-space> Vomnibar.activateTabs: fuzzy-pick an open tab.
+config.bind('<Shift+Space>', 'cmd-set-text -s :tab-select')
+
+# Vimium C search engines, `alias|url` with %s as {}. aw and gh replace the
+# entries of the same name above; pg's %2F is a literal URL escape. Vimium's
+# doc alias has no %s (qutebrowser requires {}), so it is the quickmark doc.
+c.url.searchengines.update({
+    'aw': 'https://wiki.archlinux.org/index.php?search={}',
+    'dap': 'https://docs.datadoghq.com/api/latest/{}',
+    'dd': 'https://docs.datadoghq.com/search/?s={}',
+    'di': 'https://docs.datadoghq.com/integrations/{}',
+    'dlib': 'https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/{}',
+    'gh': 'https://github.com/search?q={}&type=repositories',
+    'tf': 'https://registry.terraform.io/search/providers?q={}',
+    'pg': 'https://www.postgresql.org/search/?u=%2Fdocs%2F9.2%2F&q={}',
+    'ol': 'https://docs.ollama.com/capabilities/#{}',
+    'olap': 'https://docs.ollama.com/api/{}',
+})
