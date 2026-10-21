@@ -80,6 +80,18 @@ def test_engage_tile_round_trip(bindings):
     assert tile[RESTART] == 'restart'
 
 
+def test_t_enters_tile_and_shadows_nothing(bindings):
+    """Plain t enters tile mode; every stock t-chain is gone so none is dead."""
+    from qutebrowser.config import configdata
+    if 'tabs.tiling.layout' not in configdata.DATA:
+        pytest.skip('stock build without tab tiling')
+    normal = bindings('normal')
+    t = keyutils.KeySequence.parse('t')
+    assert normal[t] == 'mode-enter tile'
+    chains = [str(k) for k in normal if len(k) > 1 and k[0] == t[0]]
+    assert chains == []
+
+
 def test_leader_alone_is_a_prefix_not_a_command(bindings):
     # Bound to a command, <Space> would shadow every <Space>x chain.
     assert LEADER not in bindings('normal')

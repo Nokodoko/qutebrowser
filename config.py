@@ -1993,40 +1993,28 @@ config.bind('sf', 'save')
 config.bind('sk', 'cmd-set-text -s :bind')
 config.bind('sl', 'cmd-set-text -s :set -t')
 config.bind('ss', 'cmd-set-text -s :set')
-config.bind(
-    'tIH', 'config-cycle -p -u *://*.{url:host}/* content.images ;; reload')
-config.bind(
-    'tIh', 'config-cycle -p -u *://{url:host}/* content.images ;; reload')
-config.bind('tIu', 'config-cycle -p -u {url} content.images ;; reload')
-config.bind(
-    'tPH', 'config-cycle -p -u *://*.{url:host}/* content.plugins ;; reload')
-config.bind(
-    'tPh', 'config-cycle -p -u *://{url:host}/* content.plugins ;; reload')
-config.bind('tPu', 'config-cycle -p -u {url} content.plugins ;; reload')
-config.bind(
-    'tSH', 'config-cycle -p -u *://*.{url:host}/* content.javascript.enabled ;; reload')
-config.bind(
-    'tSh', 'config-cycle -p -u *://{url:host}/* content.javascript.enabled ;; reload')
-config.bind(
-    'tSu', 'config-cycle -p -u {url} content.javascript.enabled ;; reload')
-config.bind('th', 'back -t')
-config.bind(
-    'tiH', 'config-cycle -p -t -u *://*.{url:host}/* content.images ;; reload')
-config.bind(
-    'tih', 'config-cycle -p -t -u *://{url:host}/* content.images ;; reload')
-config.bind('tiu', 'config-cycle -p -t -u {url} content.images ;; reload')
-config.bind('tl', 'forward -t')
-config.bind(
-    'tpH', 'config-cycle -p -t -u *://*.{url:host}/* content.plugins ;; reload')
-config.bind(
-    'tph', 'config-cycle -p -t -u *://{url:host}/* content.plugins ;; reload')
-config.bind('tpu', 'config-cycle -p -t -u {url} content.plugins ;; reload')
-config.bind(
-    'tsH', 'config-cycle -p -t -u *://*.{url:host}/* content.javascript.enabled ;; reload')
-config.bind(
-    'tsh', 'config-cycle -p -t -u *://{url:host}/* content.javascript.enabled ;; reload')
-config.bind(
-    'tsu', 'config-cycle -p -t -u {url} content.javascript.enabled ;; reload')
+# t enters tile mode (tiling build). The stock t-chains (th/tl tab
+# back/forward, ts*/tp*/ti*/tc* per-site setting toggles) are unbound: with
+# t itself bound they would never fire. :back -t / :forward -t and
+# :config-cycle remain available from the command line.
+if 'tabs.tiling.layout' in configdata.DATA:
+    # Keys are KeySequence objects; compare their string form. A t-chain is
+    # a plain t followed by at least one more key (`th`, `tsh`, ...). The
+    # chains live in bindings.default AND, via autoconfig.yml (loaded above),
+    # as custom bindings in bindings.commands. config.unbind removes one
+    # layer per call (the custom one first, then shadows the default), so a
+    # chain present in both needs two calls.
+    _default_t = {str(_seq) for _seq in c.bindings.default['normal']}
+    _custom_t = {str(_seq) for _seq, _cmd
+                 in c.bindings.commands.get('normal', {}).items() if _cmd}
+    for _s in sorted(_default_t | _custom_t):
+        if not (len(_s) > 1 and _s[0] == 't' and _s[1] != '<'):
+            continue
+        if _s in _custom_t:
+            config.unbind(_s)
+        if _s in _default_t:
+            config.unbind(_s)
+    config.bind('t', 'mode-enter tile')
 config.bind('u', smooth_scroll(-0.5))
 config.bind('v', 'mode-enter caret')
 config.bind('wB', 'cmd-set-text -s :bookmark-load -w')
