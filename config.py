@@ -2232,7 +2232,7 @@ for mode in _leader_modes:
 #                              to normal, a (bound here) re-engages. It is
 #                              normal mode with tab navigation: arrows, u/d,
 #                              PgUp/PgDown, gg/G scroll, H/L back/forward,
-#                              +/- zoom, <Space>b / <Space>r as in normal
+#                              +/- zoom, x tab-close, <Space>b / <Space>r
 #   <Space>T  -> bitwise mode: 1-9 toggle that tag in the view (the matching
 #                              tabs appear in the stack as you press), 0 all,
 #                              <Return> back to tile mode, <Esc> leaves
@@ -2245,6 +2245,8 @@ if 'tabs.tiling.layout' in configdata.DATA:
     config.bind('<Space>T', 'mode-enter bitwise')
     # a: back to the page (ENGAGE); the leader above drops into tile mode.
     config.bind('a', 'mode-enter passthrough', mode='tile')
+    # x closes the tab, as in normal mode (d scrolls in tile).
+    config.bind('x', 'tab-close', mode='tile')
     # Send the current tab to a tag from tile mode: s then the digit.
     for _n in range(1, 10):
         config.bind(f's{_n}', f'tag {_n}', mode='tile')

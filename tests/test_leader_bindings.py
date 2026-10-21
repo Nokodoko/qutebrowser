@@ -75,6 +75,7 @@ def test_engage_tile_round_trip(bindings):
     assert tile[keyutils.KeySequence.parse('L')] == 'forward'
     assert tile[keyutils.KeySequence.parse('+')] == 'zoom-in'
     assert tile[keyutils.KeySequence.parse('-')] == 'zoom-out'
+    assert tile[keyutils.KeySequence.parse('x')] == 'tab-close'
     # The <Space> leader chains work from tile too.
     assert tile[TABBAR] == 'config-cycle tabs.show always never'
     assert tile[RESTART] == 'restart'
