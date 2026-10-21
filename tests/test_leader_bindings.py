@@ -73,6 +73,11 @@ def test_engage_tile_round_trip(bindings):
     assert tile[keyutils.KeySequence.parse('<PgDown>')] == 'scroll-page 0 1'
     assert tile[keyutils.KeySequence.parse('H')] == 'back'
     assert tile[keyutils.KeySequence.parse('L')] == 'forward'
+    assert tile[keyutils.KeySequence.parse('+')] == 'zoom-in'
+    assert tile[keyutils.KeySequence.parse('-')] == 'zoom-out'
+    # The <Space> leader chains work from tile too.
+    assert tile[TABBAR] == 'config-cycle tabs.show always never'
+    assert tile[RESTART] == 'restart'
 
 
 def test_leader_alone_is_a_prefix_not_a_command(bindings):

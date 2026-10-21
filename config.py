@@ -2222,10 +2222,15 @@ if 'input.default_mode' in configdata.DATA:
 # Tab bar shown; <Space>b (normal mode, so behind the leader guard) toggles
 # it. <Space>t / <Space>T enter tile / bitwise mode below.
 c.tabs.show = 'always'
-config.bind('<Space>b', 'config-cycle tabs.show always never')
 # <Space>r restarts, keeping the session (the :restart command saves it to the
-# _restart session and respawns with --json-args).
-config.bind('<Space>r', 'restart')
+# _restart session and respawns with --json-args). Both chains are bound in
+# tile mode as well (below), since tile doubles as normal mode.
+_leader_modes = ['normal']
+if 'tabs.tiling.layout' in configdata.DATA:
+    _leader_modes.append('tile')
+for mode in _leader_modes:
+    config.bind('<Space>b', 'config-cycle tabs.show always never', mode=mode)
+    config.bind('<Space>r', 'restart', mode=mode)
 
 # dwm-style tab tiling (the ~/Programs/qutebrowser build, branch
 # n0ko/statusbar-segments). Tabs are clients with a 9-bit tag mask; the
@@ -2238,7 +2243,8 @@ config.bind('<Space>r', 'restart')
 #                              I/D nmaster, T -> bitwise mode, <Esc> leaves
 #                              to normal, a (bound here) re-engages. It is
 #                              normal mode with tab navigation: arrows, u/d,
-#                              PgUp/PgDown, gg/G scroll, H/L back/forward
+#                              PgUp/PgDown, gg/G scroll, H/L back/forward,
+#                              +/- zoom, <Space>b / <Space>r as in normal
 #   <Space>T  -> bitwise mode: 1-9 toggle that tag in the view (the matching
 #                              tabs appear in the stack as you press), 0 all,
 #                              <Return> back to tile mode, <Esc> leaves
