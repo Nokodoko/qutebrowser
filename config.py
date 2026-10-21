@@ -2235,9 +2235,10 @@ config.bind('<Space>r', 'restart')
 #   <Space>t  -> tile mode:    1-9 view tag, 0 view all, <Tab> previous
 #                              tagset, f tile/monocle, j/k focus through the
 #                              visible tiles, <Return> zoom, h/l mfact,
-#                              I/D nmaster, <Up>/<Down> and u/d scroll the
-#                              page, T -> bitwise mode, <Esc> leaves to
-#                              normal, a (bound here) re-engages
+#                              I/D nmaster, T -> bitwise mode, <Esc> leaves
+#                              to normal, a (bound here) re-engages. It is
+#                              normal mode with tab navigation: arrows, u/d,
+#                              PgUp/PgDown, gg/G scroll, H/L back/forward
 #   <Space>T  -> bitwise mode: 1-9 toggle that tag in the view (the matching
 #                              tabs appear in the stack as you press), 0 all,
 #                              <Return> back to tile mode, <Esc> leaves

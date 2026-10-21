@@ -67,6 +67,12 @@ def test_engage_tile_round_trip(bindings):
     assert tile[keyutils.KeySequence.parse('u')] == 'scroll-page 0 -0.5'
     assert tile[keyutils.KeySequence.parse('d')] == 'scroll-page 0 0.5'
     assert tile[keyutils.KeySequence.parse('D')] == 'tile-nmaster -1'
+    # Tile is normal mode with tab navigation: page navigation lives there too.
+    assert tile[keyutils.KeySequence.parse('gg')] == 'scroll-to-perc 0'
+    assert tile[keyutils.KeySequence.parse('G')] == 'scroll-to-perc'
+    assert tile[keyutils.KeySequence.parse('<PgDown>')] == 'scroll-page 0 1'
+    assert tile[keyutils.KeySequence.parse('H')] == 'back'
+    assert tile[keyutils.KeySequence.parse('L')] == 'forward'
 
 
 def test_leader_alone_is_a_prefix_not_a_command(bindings):
