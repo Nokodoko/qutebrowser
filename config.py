@@ -2193,7 +2193,7 @@ else:
     config.bind('<Alt+Meta+Space>', 'mode-leave', mode='passthrough')
 _unlocked = ['normal', 'insert', 'caret']
 if 'tabs.tiling.layout' in configdata.DATA:
-    _unlocked += ['tile', 'bitwise']
+    _unlocked += ['tile']
 for mode in _unlocked:
     config.bind('<Alt+Meta+Space>', 'mode-enter passthrough', mode=mode)
 if 'input.default_mode' in configdata.DATA:
@@ -2208,7 +2208,7 @@ if 'input.default_mode' in configdata.DATA:
 # only exists as a prefix.
 #
 # Tab bar shown; <Space>b (normal mode, so behind the leader guard) toggles
-# it. <Space>t / <Space>T enter tile / bitwise mode below.
+# it. <Space>t (and plain t) enter tile mode below.
 c.tabs.show = 'always'
 # <Space>r restarts, keeping the session (the :restart command saves it to the
 # _restart session and respawns with --json-args). Both chains are bound in
@@ -2223,26 +2223,22 @@ for mode in _leader_modes:
 # dwm-style tab tiling (the ~/Programs/qutebrowser build, branch
 # n0ko/statusbar-segments). Tabs are clients with a 9-bit tag mask; the
 # window views a tagset; tile = master/stack, monocle = stock one-tab view.
-# Two key modes carry the dwm keys (defaults in bindings.default of that
-# build, so nothing is bound here beyond the entry points):
-#   <Space>t  -> tile mode:    1-9 view tag, 0 view all, <Tab> previous
-#                              tagset, f tile/monocle, j/k focus through the
-#                              visible tiles, <Return> zoom, h/l mfact,
-#                              I/D nmaster, T -> bitwise mode, <Esc> leaves
-#                              to normal, a (bound here) re-engages. It is
-#                              normal mode with tab navigation: arrows, u/d,
-#                              PgUp/PgDown, gg/G scroll, H/L back/forward,
-#                              +/- zoom, x tab-close, <Space>b / <Space>r
-#   <Space>T  -> bitwise mode: 1-9 toggle that tag in the view (the matching
-#                              tabs appear in the stack as you press), 0 all,
-#                              <Return> back to tile mode, <Esc> leaves
+# Tile mode is normal mode plus tab navigation (defaults in bindings.default
+# of that build; TILE_OWN_KEYS at the end of this file copies every other
+# normal binding into it):
+#   t / <Space>t -> tile mode: 1-9 view tag, 0 view all, <Tab> previous
+#                  tagset, z tile/monocle, j/k focus through the visible
+#                  tiles, <Return> zoom, h/l mfact, I/D nmaster, T pick a
+#                  tab from a list, f/F/gi hints, <Esc> leaves to normal,
+#                  a (bound here) re-engages, x tab-close, s<N> send the tab
+#                  to tag N. Hints, the command line, insert and prompts
+#                  entered from tile return to tile (modeman in the build).
 # Guarded so the stock build (no tabs.tiling.*) still sources this file.
 if 'tabs.tiling.layout' in configdata.DATA:
     c.tabs.tiling.layout = 'tile'
     c.tabs.tiling.mfact = 0.55
     c.tabs.tiling.nmaster = 1
     config.bind('<Space>t', 'mode-enter tile')
-    config.bind('<Space>T', 'mode-enter bitwise')
     # a: back to the page (ENGAGE); the leader above drops into tile mode.
     config.bind('a', 'mode-enter passthrough', mode='tile')
     # x closes the tab, as in normal mode (d scrolls in tile).
@@ -2375,6 +2371,54 @@ for key, url in VIMIUM_TABS.items():
     config.bind(key, 'open -t ' + url)
 # Vimium's <s-space> Vomnibar.activateTabs: fuzzy-pick an open tab.
 config.bind('<Shift+Space>', 'cmd-set-text -s :tab-select')
+
+# Tile mode is normal mode with tab navigation: every effective normal-mode
+# binding is copied into it, except where tile has its own key. Keep this
+# after every normal-mode bind in this file. TILE_OWN_KEYS keep their tile
+# meaning; a normal chain that starts with one of them (al, ag, ad under a;
+# xo, xO under x; DP under D) would be shadowed by it, so it is skipped too,
+# as is a normal key that is a prefix of a tile chain (s for s1..s9). Every
+# other key, u/d (smooth scroll), G, gg, H, L etc. included, takes the
+# normal-mode command so both modes behave the same.
+if 'tabs.tiling.layout' in configdata.DATA:
+    from qutebrowser.keyinput import keyutils as _keyutils
+
+    TILE_OWN_KEYS = (
+        [str(_n) for _n in range(10)]
+        + ['<Tab>', '<Return>', '<Escape>', '<Up>', '<Down>', 'z', 'j', 'k',
+           'h', 'l', 'I', 'D', 'r', 'a', 'x', 't']
+        + [f's{_n}' for _n in range(1, 10)])
+
+    def _effective(mode):
+        out = {str(_k): _v for _k, _v in c.bindings.default[mode].items()}
+        for _k, _v in c.bindings.commands.get(mode, {}).items():
+            if _v:
+                out[str(_k)] = _v
+            else:
+                out.pop(str(_k), None)
+        return out
+
+    _own = {str(_keyutils.KeySequence.parse(_k)) for _k in TILE_OWN_KEYS}
+    _own_firsts = {_k for _k in _own
+                   if len(_keyutils.KeySequence.parse(_k)) == 1}
+    _own_prefixes = {str(_keyutils.KeySequence.parse(_k)[:1])
+                     for _k in _own
+                     if len(_keyutils.KeySequence.parse(_k)) > 1}
+    _normal = _effective('normal')
+    # A normal chain under a bound single key (Fb/Fc/Fx under F) is dead in
+    # normal mode already; copying it would only carry the dead chain over.
+    _normal_singles = {str(_keyutils.KeySequence.parse(_k)) for _k in _normal
+                       if len(_keyutils.KeySequence.parse(_k)) == 1}
+    for _key, _cmd in _normal.items():
+        _seq = _keyutils.KeySequence.parse(_key)
+        _first = str(_seq[:1])
+        if _key in _own or _first in _own_firsts:
+            continue
+        if len(_seq) > 1 and _first in _normal_singles:
+            continue
+        if len(_seq) == 1 and _key in _own_prefixes:
+            continue
+        config.bind(_key, _cmd, mode='tile')
 
 # Vimium C search engines, `alias|url` with %s as {}. aw and gh replace the
 # entries of the same name above; pg's %2F is a literal URL escape. Vimium's

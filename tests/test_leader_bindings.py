@@ -2,8 +2,7 @@
 
 <Space> is the leader: a prefix only, never a command of its own in normal
 mode, so every <Space>x chain stays reachable. <Space>r restarts, <Space>b
-toggles the tab bar, <Space>t / <Space>T enter tile / bitwise mode (tiling
-build only).
+toggles the tab bar, <Space>t enters tile mode (tiling build only).
 
 Space is bound to selection-toggle in CARET mode by default; that is a
 different mode and is untouched, which is why the leader is a normal-mode
@@ -23,7 +22,16 @@ LEADER = keyutils.KeySequence.parse('<Space>')
 RESTART = keyutils.KeySequence.parse('<Space>r')
 TABBAR = keyutils.KeySequence.parse('<Space>b')
 TILE = keyutils.KeySequence.parse('<Space>t')
-BITWISE = keyutils.KeySequence.parse('<Space>T')
+
+
+def K(key):
+    return keyutils.KeySequence.parse(key)
+
+
+def _tiling():
+    from qutebrowser.config import configdata
+    if 'tabs.tiling.layout' not in configdata.DATA:
+        pytest.skip('stock build without tab tiling')
 
 
 def test_leader_r_restarts(bindings):
@@ -34,16 +42,28 @@ def test_leader_b_toggles_tabbar(bindings):
     assert bindings('normal')[TABBAR] == 'config-cycle tabs.show always never'
 
 
-def test_leader_t_enters_tile_modes(bindings):
-    from qutebrowser.config import configdata
-    if 'tabs.tiling.layout' not in configdata.DATA:
-        pytest.skip('stock build without tab tiling')
+def test_leader_t_enters_tile_mode(bindings):
+    _tiling()
     assert bindings('normal')[TILE] == 'mode-enter tile'
-    assert bindings('normal')[BITWISE] == 'mode-enter bitwise'
     tile = bindings('tile')
-    assert tile[keyutils.KeySequence.parse('f')] == 'tile-layout toggle'
-    assert tile[keyutils.KeySequence.parse('s3')] == 'tag 3'
-    assert bindings('bitwise')[keyutils.KeySequence.parse('<Return>')] == 'mode-enter tile'
+    assert tile[K('z')] == 'tile-layout toggle'
+    assert tile[K('s3')] == 'tag 3'
+
+
+def test_bitwise_mode_is_gone(bindings):
+    _tiling()
+    from qutebrowser.utils import usertypes
+    assert 'bitwise' not in usertypes.KeyMode.__members__
+    assert K('<Space>T') not in bindings('normal')
+    assert bindings('tile')[K('T')] == 'cmd-set-text -s :tab-select'
+
+
+def test_tile_hints_like_normal(bindings):
+    """f/F/gi follow hints in tile exactly as in normal mode."""
+    _tiling()
+    normal, tile = bindings('normal'), bindings('tile')
+    for key in ['f', 'F', 'gi']:
+        assert tile[K(key)] == normal[K(key)], key
 
 
 def test_engage_tile_round_trip(bindings):
@@ -52,9 +72,7 @@ def test_engage_tile_round_trip(bindings):
     j/k walk the stack of tabs while <Up>/<Down> and u/d scroll the page,
     so moving around never needs to disengage fully.
     """
-    from qutebrowser.config import configdata
-    if 'tabs.tiling.layout' not in configdata.DATA:
-        pytest.skip('stock build without tab tiling')
+    _tiling()
     leader = keyutils.KeySequence.parse('<Alt+Meta+Space>')
     assert bindings('passthrough')[leader] == 'mode-enter tile'
     tile = bindings('tile')
@@ -64,21 +82,61 @@ def test_engage_tile_round_trip(bindings):
     assert tile[keyutils.KeySequence.parse('k')] == 'tile-focus prev'
     assert tile[keyutils.KeySequence.parse('<Up>')] == 'scroll up'
     assert tile[keyutils.KeySequence.parse('<Down>')] == 'scroll down'
-    assert tile[keyutils.KeySequence.parse('u')] == 'scroll-page 0 -0.5'
-    assert tile[keyutils.KeySequence.parse('d')] == 'scroll-page 0 0.5'
+    # u/d are the normal-mode smooth scrolls, copied over.
+    normal = bindings('normal')
+    assert tile[K('u')] == normal[K('u')]
+    assert tile[K('d')] == normal[K('d')]
     assert tile[keyutils.KeySequence.parse('D')] == 'tile-nmaster -1'
     # Tile is normal mode with tab navigation: page navigation lives there too.
     assert tile[keyutils.KeySequence.parse('gg')] == 'scroll-to-perc 0'
     assert tile[keyutils.KeySequence.parse('G')] == 'scroll-to-perc'
     assert tile[keyutils.KeySequence.parse('<PgDown>')] == 'scroll-page 0 1'
-    assert tile[keyutils.KeySequence.parse('H')] == 'back'
-    assert tile[keyutils.KeySequence.parse('L')] == 'forward'
+    assert tile[K('H')] == normal[K('H')]
+    assert tile[K('L')] == normal[K('L')]
     assert tile[keyutils.KeySequence.parse('+')] == 'zoom-in'
     assert tile[keyutils.KeySequence.parse('-')] == 'zoom-out'
     assert tile[keyutils.KeySequence.parse('x')] == 'tab-close'
     # The <Space> leader chains work from tile too.
     assert tile[TABBAR] == 'config-cycle tabs.show always never'
     assert tile[RESTART] == 'restart'
+
+
+TILE_OWN = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '<Tab>',
+            '<Return>', '<Escape>', '<Up>', '<Down>', 'z', 'j', 'k', 'h', 'l',
+            'I', 'D', 'r', 'a', 'x', 't']
+
+
+def test_tile_carries_every_normal_binding(bindings):
+    """Tile is normal mode plus tab keys: each normal binding is in tile.
+
+    The only exceptions are tile's own keys, chains starting with one of
+    them (they would be shadowed), and s (prefix of the s1..s9 chains).
+    """
+    _tiling()
+    normal, tile = bindings('normal'), bindings('tile')
+    own = {str(K(k)) for k in TILE_OWN}
+    normal_singles = {str(k) for k in normal if len(k) == 1}
+    missing = []
+    for key, cmd in normal.items():
+        first = str(key[:1])
+        if str(key) in own or first in own:
+            continue
+        if len(key) > 1 and first in normal_singles:
+            continue  # dead in normal mode already
+        if str(key) == 's':
+            continue
+        if tile.get(key) != cmd:
+            missing.append(str(key))
+    assert missing == []
+
+
+def test_tile_has_no_shadowed_chains(bindings):
+    """No tile chain sits under a single key that is itself bound."""
+    _tiling()
+    tile = bindings('tile')
+    singles = {str(k) for k in tile if len(k) == 1}
+    shadowed = [str(k) for k in tile if len(k) > 1 and str(k[:1]) in singles]
+    assert shadowed == []
 
 
 def test_t_enters_tile_and_shadows_nothing(bindings):

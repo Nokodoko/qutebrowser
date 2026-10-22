@@ -38,9 +38,9 @@ def test_leader_unlocks_from_passthrough(bindings):
         assert bindings('passthrough') == {LEADER: 'mode-leave'}
 
 
-@pytest.mark.parametrize('mode', ['tile', 'bitwise'])
+@pytest.mark.parametrize('mode', ['tile'])
 def test_leader_locks_from_tile_modes(bindings, mode):
-    """Tile modes are unlocked states too: the leader must not be swallowed."""
+    """Tile mode is an unlocked state too: the leader must not be swallowed."""
     from qutebrowser.config import configdata
     if 'tabs.tiling.layout' not in configdata.DATA:
         pytest.skip('stock build without tab tiling')
