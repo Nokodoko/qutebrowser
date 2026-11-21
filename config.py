@@ -1031,11 +1031,14 @@ c.editor.encoding = 'utf-8'
 
 # Font used in the completion categories.
 ## Type: Font
-c.fonts.completion.category = 'bold default_size VictorMono'
+# Explicit 12pt, not default_size (18pt): at 18pt the tab picker and the
+# icarus bar (which uses fonts.completion.entry too) fit few rows and look
+# cluttered. 11pt or 13pt are the next steps if this is off.
+c.fonts.completion.category = 'bold 12pt VictorMono'
 
 # Font used in the completion widget.
 ## Type: Font
-c.fonts.completion.entry = 'default_size VictorMono'
+c.fonts.completion.entry = '12pt VictorMono'
 
 # Font used for the context menu. If set to null, the Qt default is
 # used.
@@ -1065,7 +1068,11 @@ c.fonts.downloads = 'default_size VictorMono'
 
 # Font used for the hints.
 ## Type: Font
-c.fonts.hints = 'bold default_size VictorMono'
+# Explicit 8pt, not default_size: the default is 18pt (see
+# c.fonts.default_size) which made the hint tags dwarf the page. Dropped from
+# 11pt to 8pt so the tags read as markers on the page rather than as content.
+# If 8pt is too small to read, 9pt is the next step up.
+c.fonts.hints = 'bold 8pt VictorMono'
 
 # Font used in the keyhint widget.
 ## Type: Font
@@ -1185,7 +1192,9 @@ c.hints.next_regexes = ['\\bnext\\b', '\\bmore\\b',
 
 # Padding (in pixels) for hints.
 ## Type: Padding
-c.hints.padding = {'top': 0, 'bottom': 0, 'left': 3, 'right': 3}
+# Trimmed from the 0/0/3/3 default to match the small hint font, so the tags
+# stay tight around the characters.
+c.hints.padding = {'top': 0, 'bottom': 0, 'left': 1, 'right': 1}
 
 # Comma-separated list of regular expressions to use for 'prev' links.
 # Type: List of Regex
