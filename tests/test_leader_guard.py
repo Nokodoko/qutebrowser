@@ -26,16 +26,27 @@ from qutebrowser.keyinput import keyutils
 
 LEADER = keyutils.KeySequence.parse('<Alt+Meta+Space>')
 ICARUS_LEADER = keyutils.KeySequence.parse('<Ctrl+Space>')
+ICARUS_BAR_KEYS = [keyutils.KeySequence.parse(k)
+                   for k in ['<Ctrl+Alt+Shift+o>', '<Alt+o>']]
 UNLOCKED_MODES = ['normal', 'insert', 'caret']
 
 
 def test_leader_unlocks_from_passthrough(bindings):
+    """Passthrough (ENGAGE) hands the page every key but the leader.
+
+    The one deliberate exception is the icarus bar (build with icarus.url):
+    its Meh-O / Alt-O open keys are bound in passthrough too, so qutebrowser
+    takes them before the page and the CDP-injected overlay never opens.
+    """
     from qutebrowser.config import configdata
     # The tiling build disengages into tile mode; stock has no such mode.
     if 'tabs.tiling.layout' in configdata.DATA:
-        assert bindings('passthrough') == {LEADER: 'mode-enter tile'}
+        expected = {LEADER: 'mode-enter tile'}
     else:
-        assert bindings('passthrough') == {LEADER: 'mode-leave'}
+        expected = {LEADER: 'mode-leave'}
+    if 'icarus.url' in configdata.DATA:
+        expected.update({ICARUS_BAR_KEY: 'icarus' for ICARUS_BAR_KEY in ICARUS_BAR_KEYS})
+    assert bindings('passthrough') == expected
 
 
 @pytest.mark.parametrize('mode', ['tile'])
