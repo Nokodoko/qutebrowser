@@ -4,6 +4,7 @@
 # qute://help/settings.html
 
 import os
+import sys
 
 from qutebrowser.config import configdata
 
@@ -2519,7 +2520,8 @@ if 'icarus.url' in configdata.DATA:
 # the agent can read them without a copy step. lewis mounts
 # 10.0.0.1:/data/icarus/incoming at /mnt/monty; on monty the same directory is
 # /data/icarus/incoming (also bind-mounted at /mnt/monty).
-c.downloads.location.directory = "/mnt/monty"
+if sys.platform != 'darwin':  # the mac has no /mnt/monty (darwin block below)
+    c.downloads.location.directory = "/mnt/monty"
 
 # monty control plane (SPEC/monty_control_plane §5): the window title starts
 # with the current tab's host and this window's id, written by qutebrowser and
@@ -2531,7 +2533,6 @@ c.window.title_format = '{host} ⟩ {id} ⟩ {perc}{current_title}'
 # macOS (the mac host, m1, ~/.qutebrowser): the settings above assume lewis
 # (Arch + dwm/Hyprland). Override the Linux-only ones here so one repo serves
 # both hosts. dwm/Hyprland/rofi appear above only in comments and URLs.
-import sys
 if sys.platform == 'darwin':
     # No /mnt/monty NFS mount on the mac: downloads stay local.
     c.downloads.location.directory = os.path.expanduser('~/Downloads')
