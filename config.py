@@ -2527,3 +2527,29 @@ c.downloads.location.directory = "/mnt/monty"
 # can target it. `icarus monty rules check` verifies the prefix parses.
 c.window.title_format = '{host} ⟩ {id} ⟩ {perc}{current_title}'
 
+
+# macOS (the mac host, m1, ~/.qutebrowser): the settings above assume lewis
+# (Arch + dwm/Hyprland). Override the Linux-only ones here so one repo serves
+# both hosts. dwm/Hyprland/rofi appear above only in comments and URLs.
+import sys
+if sys.platform == 'darwin':
+    # No /mnt/monty NFS mount on the mac: downloads stay local.
+    c.downloads.location.directory = os.path.expanduser('~/Downloads')
+    # kitty lives in ~/Applications (or ~/.local/bin) on the mac, nvim in
+    # Homebrew; GUI launches have neither on PATH, so use absolute paths.
+    _kitty = next((p for p in [
+        os.path.expanduser('~/Applications/kitty.app/Contents/MacOS/kitty'),
+        '/Applications/kitty.app/Contents/MacOS/kitty',
+        os.path.expanduser('~/.local/bin/kitty')] if os.path.exists(p)), None)
+    if _kitty:
+        c.editor.command = [_kitty, '-e', '/opt/homebrew/bin/nvim', '{file}']
+    else:
+        c.editor.command = ['open', '-W', '-n', '-t', '{file}']
+    # mpv is optional on the mac: without it the hint opens the link in a tab.
+    _mpv = next((p for p in ['/opt/homebrew/bin/mpv', '/usr/local/bin/mpv']
+                 if os.path.exists(p)), None)
+    if _mpv:
+        config.bind('<Up>', 'hint links spawn --detach ' + _mpv
+                    + ' --force-window yes {hint-url}')
+    else:
+        config.bind('<Up>', 'hint links tab')
