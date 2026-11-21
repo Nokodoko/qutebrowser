@@ -7,9 +7,9 @@ ardanWiki https://github.com/ardanlabs/service/wiki
 linuxFunctions in ciscoIos https://www.insecurewire.com/using-linux-commands-on-cisco-ios/
 qmk https://config.qmk.fm/#/spaceman/pancake/promicro/LAYOUT_ortho_4x12
 doc https://hub.docker.com/r/rkumbhar/minikube
-i http://127.0.0.1:7654/
-p http://127.0.0.1:7662/?_r=mv3ag2lz
-k http://127.0.0.1:7669/
+i http://10.0.0.1:7654/
+p http://10.0.0.1:7662/?_r=mv3ag2lz
+k http://10.0.0.1:7669/
 ecco-git-login https://github.com/enterprises/ecco-select/sso?add_account=1
 ecco-git-2fa https://github.com/sessions/two-factor
 ecco-git-profile https://github.com/christopher-montgomery_ecco
