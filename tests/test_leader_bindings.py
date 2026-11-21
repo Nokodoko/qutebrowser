@@ -67,7 +67,12 @@ def test_bitwise_mode_is_gone(bindings):
     from qutebrowser.utils import usertypes
     assert 'bitwise' not in usertypes.KeyMode.__members__
     assert K('<Space>T') not in bindings('normal')
-    assert bindings('tile')[K('T')] == 'cmd-set-text -s :tab-select --monocle'
+    # tile T is the fork's own default (configdata.yml), not set in config.py:
+    # newer builds add --monocle, older ones (e.g. the mac's) do not.
+    from qutebrowser.config import configdata
+    default = configdata.DATA['bindings.default'].default['tile']['T']
+    assert default.startswith('cmd-set-text -s :tab-select')
+    assert bindings('tile')[K('T')] == default
 
 
 def test_tile_hints_like_normal(bindings):
