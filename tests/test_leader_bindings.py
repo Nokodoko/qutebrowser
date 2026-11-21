@@ -42,6 +42,18 @@ def test_leader_b_toggles_tabbar(bindings):
     assert bindings('normal')[TABBAR] == 'config-cycle tabs.show always never'
 
 
+def test_tile_plain_b_toggles_tabbar(bindings):
+    """In tile mode plain b toggles the tab bar; normal keeps <Space>b.
+
+    Normal-mode b stays quickmark-load (TILE_OWN_KEYS keeps it out of tile).
+    <Space>b also reaches tile through the normal-to-tile copy, which is fine.
+    """
+    _tiling()
+    tile = bindings('tile')
+    assert tile[K('b')] == 'config-cycle tabs.show always never'
+    assert bindings('normal')[K('b')] == 'cmd-set-text -s :quickmark-load'
+
+
 def test_leader_t_enters_tile_mode(bindings):
     _tiling()
     assert bindings('normal')[TILE] == 'mode-enter tile'
@@ -55,7 +67,7 @@ def test_bitwise_mode_is_gone(bindings):
     from qutebrowser.utils import usertypes
     assert 'bitwise' not in usertypes.KeyMode.__members__
     assert K('<Space>T') not in bindings('normal')
-    assert bindings('tile')[K('T')] == 'cmd-set-text -s :tab-select'
+    assert bindings('tile')[K('T')] == 'cmd-set-text -s :tab-select --monocle'
 
 
 def test_tile_hints_like_normal(bindings):
@@ -103,7 +115,7 @@ def test_engage_tile_round_trip(bindings):
 
 TILE_OWN = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '<Tab>',
             '<Return>', '<Escape>', '<Up>', '<Down>', 'z', 'j', 'k', 'h', 'l',
-            'I', 'D', 'r', 'a', 'x', 't']
+            'I', 'D', 'r', 'a', 'b', 'x', 't', 'T']
 
 
 def test_tile_carries_every_normal_binding(bindings):

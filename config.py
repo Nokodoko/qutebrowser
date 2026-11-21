@@ -2221,17 +2221,23 @@ if 'input.default_mode' in configdata.DATA:
 # only exists as a prefix.
 #
 # Tab bar shown; <Space>b (normal mode, so behind the leader guard) toggles
-# it. <Space>t (and plain t) enter tile mode below.
+# it. In tile mode the toggle is plain b (bound in the tiling block below;
+# tile has no leader guard to hide behind). <Space>t (and plain t) enter
+# tile mode below.
 c.tabs.show = 'always'
 # <Space>r restarts, keeping the session (the :restart command saves it to the
-# _restart session and respawns with --json-args). Both chains are bound in
-# tile mode as well (below), since tile doubles as normal mode.
+# _restart session and respawns with --json-args). <Space>r and <Space>k are
+# bound in tile mode as well (below), since tile doubles as normal mode.
 _leader_modes = ['normal']
 if 'tabs.tiling.layout' in configdata.DATA:
     _leader_modes.append('tile')
+config.bind('<Space>b', 'config-cycle tabs.show always never')
 for mode in _leader_modes:
-    config.bind('<Space>b', 'config-cycle tabs.show always never', mode=mode)
     config.bind('<Space>r', 'restart', mode=mode)
+    # space-k opens the :tab-kill fuzzy finder (the fork's group kill): the
+    # command line opens with `:tab-kill ` and the tab completion filters as
+    # you type; Enter closes every matching tab, a picked row closes that one.
+    config.bind('<Space>k', 'cmd-set-text -s :tab-kill', mode=mode)
 
 # dwm-style tab tiling (the ~/Programs/qutebrowser build, branch
 # n0ko/statusbar-segments). Tabs are clients with a 9-bit tag mask; the
@@ -2256,6 +2262,9 @@ if 'tabs.tiling.layout' in configdata.DATA:
     config.bind('a', 'mode-enter passthrough', mode='tile')
     # x closes the tab, as in normal mode (d scrolls in tile).
     config.bind('x', 'tab-close', mode='tile')
+    # b toggles the tab bar (normal mode uses <Space>b; b there is
+    # quickmark-load, which TILE_OWN_KEYS keeps out of tile).
+    config.bind('b', 'config-cycle tabs.show always never', mode='tile')
     # Send the current tab to a tag from tile mode: s then the digit.
     for _n in range(1, 10):
         config.bind(f's{_n}', f'tag {_n}', mode='tile')
@@ -2399,7 +2408,7 @@ if 'tabs.tiling.layout' in configdata.DATA:
     TILE_OWN_KEYS = (
         [str(_n) for _n in range(10)]
         + ['<Tab>', '<Return>', '<Escape>', '<Up>', '<Down>', 'z', 'j', 'k',
-           'h', 'l', 'I', 'D', 'r', 'a', 'x', 't']
+           'h', 'l', 'I', 'D', 'r', 'a', 'b', 'x', 't', 'T']
         + [f's{_n}' for _n in range(1, 10)])
 
     def _effective(mode):
