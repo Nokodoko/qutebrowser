@@ -1987,7 +1987,9 @@ config.bind('gr', 'tab-move +')
 config.bind('T', 'cmd-set-text -s :tab-select')
 config.bind('gu', 'navigate up')
 config.bind('h', 'scroll left')
-config.bind('i', 'mode-enter insert')
+# i goes straight to ENGAGE (passthrough); insert mode is only entered
+# automatically, by focusing a text field. Copied into tile mode below.
+config.bind('i', 'mode-enter passthrough')
 config.bind('j', 'scroll down')
 config.bind('k', 'scroll up')
 config.bind('l', 'scroll right')
@@ -2112,8 +2114,10 @@ config.bind('<Down>', 'completion-item-focus --history next', mode='command')
 config.bind('<Escape>', 'mode-leave', mode='command')
 config.bind('<Return>', 'command-accept', mode='command')
 config.bind('<Shift-Delete>', 'completion-item-del', mode='command')
-config.bind('<Shift-Tab>', 'completion-item-focus prev', mode='command')
-config.bind('<Tab>', 'completion-item-focus next', mode='command')
+# Tab marks a tab in the :tab-select picker (Enter then picks the marked
+# tabs); on every other completion it is plain completion-item-focus.
+config.bind('<Shift-Tab>', 'completion-item-mark prev', mode='command')
+config.bind('<Tab>', 'completion-item-mark next', mode='command')
 config.bind('<Up>', 'completion-item-focus --history prev', mode='command')
 
 # Bindings for hint mode
