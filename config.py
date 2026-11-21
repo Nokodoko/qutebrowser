@@ -2520,8 +2520,11 @@ if 'icarus.url' in configdata.DATA:
 # the agent can read them without a copy step. lewis mounts
 # 10.0.0.1:/data/icarus/incoming at /mnt/monty; on monty the same directory is
 # /data/icarus/incoming (also bind-mounted at /mnt/monty).
-if sys.platform != 'darwin':  # the mac has no /mnt/monty (darwin block below)
-    c.downloads.location.directory = "/mnt/monty"
+# Hosts without the share (the mac; m1 before its autofs mount answers)
+# download locally instead: validation rejects a missing directory.
+c.downloads.location.directory = (
+    "/mnt/monty" if os.path.isdir("/mnt/monty")
+    else os.path.expanduser("~/Downloads"))
 
 # monty control plane (SPEC/monty_control_plane §5): the window title starts
 # with the current tab's host and this window's id, written by qutebrowser and
