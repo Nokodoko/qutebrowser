@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd user agent for the qutebrowser source build on the mac (m1).
+  Tracked in the config repo (macos/); installed as a COPY at
+  ~/Library/LaunchAgents/com.n0ko.qutebrowser.plist:
+    cp ~/.qutebrowser/macos/com.n0ko.qutebrowser.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.n0ko.qutebrowser.plist
+  KeepAlive restarts only after a crash (non-zero exit / signal): a normal
+  :quit exits 0 and stays quit. Start again with
+    launchctl kickstart gui/$(id -u)/com.n0ko.qutebrowser
+  The wrapper sets DevTools 127.0.0.1:9223 (monty's cdp-tunnel-mac.service).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.n0ko.qutebrowser</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/n0ko/.local/bin/qutebrowser</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>StandardOutPath</key>
+    <string>/Users/n0ko/Library/Logs/qutebrowser.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/n0ko/Library/Logs/qutebrowser.log</string>
+</dict>
+</plist>
