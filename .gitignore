@@ -1,1 +1,6 @@
 quteTutorial.mkv
+__pycache__/
+*.pyc
+config.py.bak*
+.pytest_cache/
+.benchmarks/
