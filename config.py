@@ -4,6 +4,7 @@
 # qute://help/settings.html
 
 import os
+import shutil
 import sys
 
 from qutebrowser.config import configdata
@@ -2533,7 +2534,12 @@ c.downloads.location.directory = (
 c.window.title_format = '{host} ⟩ {id} ⟩ {perc}{current_title}'
 
 
-# macOS (the mac host, m1, ~/.qutebrowser): the settings above assume lewis
+# mpv is optional on Linux too (m1 has none): without it the <Up> hint
+# opens the link in a tab instead of spawning a missing player.
+if sys.platform != 'darwin' and shutil.which('mpv') is None:
+    config.bind('<Up>', 'hint links tab')
+
+# macOS (the mac host, ~/.qutebrowser): the settings above assume lewis
 # (Arch + dwm/Hyprland). Override the Linux-only ones here so one repo serves
 # both hosts. dwm/Hyprland/rofi appear above only in comments and URLs.
 if sys.platform == 'darwin':
