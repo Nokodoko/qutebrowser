@@ -981,7 +981,7 @@ c.content.xss_auditing = False
 # Directory to save downloads to. If unset, a sensible OS-specific
 # default is used.
 ## Type: Directory
-c.downloads.location.directory = None
+# (set at the bottom of this file: downloads go to the monty share)
 
 # Prompt the user for the download location. If set to false,
 # `downloads.location.directory` will be used.
@@ -1809,7 +1809,6 @@ c.window.hide_decoration = False
 # Format to use for the window title. The same placeholders like for
 # `tabs.title.format` are defined.
 ## Type: FormatString
-c.window.title_format = '{perc}{current_title}{title_sep}qutebrowser'
 
 # Default zoom level.
 ## Type: Perc
@@ -2498,3 +2497,33 @@ c.url.searchengines.update({
     'ol': 'https://docs.ollama.com/capabilities/#{}',
     'olap': 'https://docs.ollama.com/api/{}',
 })
+
+# The icarus bar (the ~/Programs/qutebrowser build, branch omnibar): the
+# omnibar as a native qutebrowser menu instead of the CDP-injected page bar,
+# on the omnibar's keys -- Meh-O (Ctrl+Alt+Shift+O, the crkbd thumb) and
+# Alt+O. Bound in every mode the page can be in, ENGAGE (passthrough)
+# included: qutebrowser takes a bound key before the page sees it, so the
+# injected overlay no longer opens on these keys. In the bar (icarus mode)
+# the same keys close it. Guarded so the stock build still sources this file.
+if 'icarus.url' in configdata.DATA:
+    # The serves moved to monty (2026-10-25); the bar talks over wg0. Monty admits
+    # lewis via web.serve.trusted_peer_cidrs.
+    config.set("icarus.url", "http://10.0.0.1:7654")
+    for mode in ['normal', 'passthrough', 'insert', 'caret', 'tile']:
+        for key in ['<Ctrl+Alt+Shift+o>', '<Alt+o>']:
+            config.bind(key, 'icarus', mode=mode)
+    for key in ['<Ctrl+Alt+Shift+o>', '<Alt+o>']:
+        config.bind(key, 'icarus --toggle', mode='icarus')
+
+# Downloads land on monty (the icarus backend host) over the wg0 NFS share, so
+# the agent can read them without a copy step. lewis mounts
+# 10.0.0.1:/data/icarus/incoming at /mnt/monty; on monty the same directory is
+# /data/icarus/incoming (also bind-mounted at /mnt/monty).
+c.downloads.location.directory = "/mnt/monty"
+
+# monty control plane (SPEC/monty_control_plane §5): the window title starts
+# with the current tab's host and this window's id, written by qutebrowser and
+# never by the page, so tab rules can match a window and `:tab-give <win-id>`
+# can target it. `icarus monty rules check` verifies the prefix parses.
+c.window.title_format = '{host} ⟩ {id} ⟩ {perc}{current_title}'
+
