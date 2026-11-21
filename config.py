@@ -3,6 +3,8 @@
 # qute://help/configuring.html
 # qute://help/settings.html
 
+import os
+
 from qutebrowser.config import configdata
 
 # Duration of the d/u half-page smooth scroll. Chromium's own smooth scroll
@@ -2279,76 +2281,115 @@ if 'tabs.tiling.layout' in configdata.DATA:
     for _pattern, _tag in TAG_RULES.items():
         config.set('tabs.tiling.rule_tag', _tag, _pattern)
 
-# Lualine-style statusbar in the tokyodark palette (Neovim's colorscheme, from
-# tokyodark.nvim lua/lualine/themes/tokyodark.lua). These override the stock
-# statusbar colors set earlier in this file. The mode color is lualine's bold
-# section-a "pill"; with statusbar.segments (the ~/Programs/qutebrowser build,
-# branch n0ko/statusbar-segments) it is painted only behind each widget's text
-# and the rest of the bar stays dark. Stock qutebrowser has no such option and
-# paints the pill across the whole bar. The URL text is dark so it reads on
-# every pill. Mode map: normal=green (lualine normal), insert=blue,
-# caret=purple (visual), command=yellow; passthrough -- the locked state of the
-# leader guard, no vim analog -- takes the palette's cyan.
-TOKYODARK = {
-    'bg0': '#11121D', 'bg1': '#1A1B2A', 'bg2': '#212234', 'bg3': '#353945',
-    'bg4': '#4A5057',
-    'fg': '#A0A8CD', 'diff_red': '#773440',
-    'yellow': '#D7A65F', 'green': '#95C561', 'blue': '#7199EE',
-    'cyan': '#38A89D', 'purple': '#A485DD',
+# Lualine-style statusbar in the icarus steampunk palette: pure black surfaces,
+# metallic gold pills, silver text -- the same values as the icarus web UI's
+# default theme (:root[data-theme="icarus"] in icarus internal/web/static/app.css
+# and its --frame-gold tokens), so the browser chrome and the page it frames
+# agree. These override the stock statusbar colors set earlier in this file.
+# The mode color is lualine's bold section-a "pill"; with statusbar.segments
+# (the ~/Programs/qutebrowser build, branch n0ko/statusbar-segments) it is
+# painted only behind each widget's text and the rest of the bar stays black.
+# Stock qutebrowser has no such option and paints the pill across the whole
+# bar. The URL text is dark so it reads on every pill. Mode map: normal=gold,
+# insert=bright gold, caret=gold-mid (visual), command=amber; passthrough --
+# the locked ENGAGE state of the leader guard, no vim analog -- KEEPS the
+# tokyodark cyan on purpose (operator, 2026-10-31): the right-hand blocks in
+# ENGAGE stay cyan. The mode label itself (NORMAL / ENGAGE / TILE) is always
+# the gold pill with black text, in every mode, through the fork's
+# colors.statusbar.segments.mode.* (the same build; stock has no such option),
+# so ENGAGE reads gold on the left while its widgets stay cyan on the right.
+ICARUS = {
+    'bg0': '#000000', 'bg1': '#000000', 'bg2': '#0B0D10', 'bg3': '#111419',
+    'bg4': '#3A2404',
+    'fg': '#D5D8DE', 'red': '#EF5962',
+    'gold': '#DBAC21', 'gold_bright': '#FFD45C', 'gold_mid': '#9A6206',
+    'amber': '#EA8C19', 'cyan': '#38A89D',
 }
 PILLS = {
-    'normal': 'green', 'insert': 'blue', 'passthrough': 'cyan',
-    'caret': 'purple', 'caret.selection': 'purple',
-    'command': 'yellow', 'command.private': 'yellow',
+    'normal': 'gold', 'insert': 'gold_bright', 'passthrough': 'cyan',
+    'caret': 'gold_mid', 'caret.selection': 'gold_mid',
+    'command': 'amber', 'command.private': 'amber',
 }
 for mode, color in PILLS.items():
-    config.set(f'colors.statusbar.{mode}.bg', TOKYODARK[color])
-    config.set(f'colors.statusbar.{mode}.fg', TOKYODARK['bg1'])
-c.colors.statusbar.private.bg = TOKYODARK['bg4']
-c.colors.statusbar.private.fg = TOKYODARK['fg']
-c.colors.statusbar.progress.bg = TOKYODARK['bg1']
-c.colors.statusbar.url.fg = TOKYODARK['bg0']
-c.colors.statusbar.url.success.http.fg = TOKYODARK['bg0']
-c.colors.statusbar.url.success.https.fg = TOKYODARK['bg0']
-c.colors.statusbar.url.hover.fg = TOKYODARK['bg3']
-c.colors.statusbar.url.warn.fg = TOKYODARK['diff_red']
-c.colors.statusbar.url.error.fg = TOKYODARK['diff_red']
+    config.set(f'colors.statusbar.{mode}.bg', ICARUS[color])
+    config.set(f'colors.statusbar.{mode}.fg', ICARUS['bg1'])
+c.colors.statusbar.private.bg = ICARUS['bg4']
+c.colors.statusbar.private.fg = ICARUS['fg']
+c.colors.statusbar.progress.bg = ICARUS['gold']
+c.colors.statusbar.url.fg = ICARUS['bg0']
+c.colors.statusbar.url.success.http.fg = ICARUS['bg0']
+c.colors.statusbar.url.success.https.fg = ICARUS['bg0']
+c.colors.statusbar.url.hover.fg = ICARUS['bg3']
+c.colors.statusbar.url.warn.fg = ICARUS['red']
+c.colors.statusbar.url.error.fg = ICARUS['red']
 if 'statusbar.segments' in configdata.DATA:
     config.set('statusbar.segments', True)
-    config.set('colors.statusbar.segments.bg', TOKYODARK['bg1'])
-    config.set('colors.statusbar.segments.fg', TOKYODARK['fg'])
+    config.set('colors.statusbar.segments.bg', ICARUS['bg1'])
+    config.set('colors.statusbar.segments.fg', ICARUS['fg'])
+if 'colors.statusbar.segments.mode.bg' in configdata.DATA:
+    config.set('colors.statusbar.segments.mode.bg', ICARUS['gold'])
+    config.set('colors.statusbar.segments.mode.fg', ICARUS['bg1'])
 c.fonts.statusbar = 'bold 10pt "VictorMono Nerd Font"'
 c.fonts.tabs.unselected = '10pt "VictorMono Nerd Font"'
 c.statusbar.padding = {'top': 3, 'bottom': 3, 'left': 8, 'right': 8}
 c.statusbar.widgets = ['keypress', 'search_match', 'url', 'scroll',
                        'history', 'tabs', 'progress', 'clock:%H:%M']
+# Rounded segments, the 8px corners of the waybar boxes
+# (~/.config/waybar/style.css); fork-only option.
+if 'statusbar.segment_radius' in configdata.DATA:
+    config.set('statusbar.segment_radius', 8)
 
-# Powerline tabs in the same palette: the selected tab is lualine's green
-# section-a pill, unselected tabs alternate bg3/bg2 so every chevron shows
-# against its neighbour, and the bar behind them is the statusbar's bg1.
+# Two browsers run this config: the user's on DevTools :9223 and the icarus
+# agent-owned one on :9222 (browser.cdp_url, qute-agent-browser.service).
+# Each process learns which it is from the QTWEBENGINE_REMOTE_DEBUGGING its
+# launcher set, so the agent gets a purple mode pill and a leading `agent`
+# segment while the user's browser keeps the gold pill: one glance tells the
+# two windows apart. The `agent` segment is purple in every mode through the
+# fork's colors.statusbar.segments.text.*; without it the segment took the
+# mode colour like every other widget and was lost among them (2026-11-14).
+# The matching window border is a Hyprland rule on the icarus-agent-browser
+# class.
+AGENT_CDP = os.environ.get('QTWEBENGINE_REMOTE_DEBUGGING', '').endswith(':9222')
+if AGENT_CDP:
+    ICARUS['agent'] = '#C678DD'
+    if 'colors.statusbar.segments.mode.bg' in configdata.DATA:
+        config.set('colors.statusbar.segments.mode.bg', ICARUS['agent'])
+    if 'colors.statusbar.segments.text.bg' in configdata.DATA:
+        config.set('colors.statusbar.segments.text.bg', ICARUS['agent'])
+        config.set('colors.statusbar.segments.text.fg', ICARUS['bg1'])
+    # Next to the URL: ahead of the (usually empty) keypress and search_match
+    # widgets it stood two empty segments away from it.
+    _url = c.statusbar.widgets.index("url")
+    c.statusbar.widgets = (c.statusbar.widgets[:_url] + ["text:agent"] +
+                           c.statusbar.widgets[_url:])
+
+# Powerline tabs in the same palette: the selected tab is the gold section-a
+# pill, unselected tabs alternate bg3/bg2 (two near-blacks) so every chevron
+# shows against its neighbour, and the bar behind them is the statusbar's black.
 # tabs.powerline (the chevrons) exists only in the ~/Programs/qutebrowser
 # build, branch n0ko/statusbar-segments; stock qutebrowser draws plain tabs.
 # The load indicator stripe is off: its colors fight the segments.
 if 'tabs.powerline' in configdata.DATA:
     config.set('tabs.powerline', True)
 c.tabs.indicator.width = 0
-c.colors.tabs.bar.bg = TOKYODARK['bg1']
+c.colors.tabs.bar.bg = ICARUS['bg1']
 for prefix in ['colors.tabs', 'colors.tabs.pinned']:
     for parity, bg in [('odd', 'bg3'), ('even', 'bg2')]:
-        config.set(f'{prefix}.{parity}.bg', TOKYODARK[bg])
-        config.set(f'{prefix}.{parity}.fg', TOKYODARK['fg'])
-        config.set(f'{prefix}.selected.{parity}.bg', TOKYODARK['green'])
-        config.set(f'{prefix}.selected.{parity}.fg', TOKYODARK['bg1'])
+        config.set(f'{prefix}.{parity}.bg', ICARUS[bg])
+        config.set(f'{prefix}.{parity}.fg', ICARUS['fg'])
+        config.set(f'{prefix}.selected.{parity}.bg', ICARUS['gold'])
+        config.set(f'{prefix}.selected.{parity}.fg', ICARUS['bg1'])
 c.fonts.tabs.selected = 'bold 10pt "VictorMono Nerd Font"'
 
 # Tiled tabs: a thin dwm-style border around every tile, the focused one in
-# the same green as the selected tab-bar pill so it is apparent which tile has
-# focus. Unfocused tiles get the dark bg3 frame, which the picom
-# keep_foreground shader renders as transparent anyway. Fork-only option.
+# the same gold as the selected tab-bar pill so it is apparent which tile has
+# focus. Unfocused tiles get the dim-gold hairline (bg4, the web UI's --line),
+# which the picom keep_foreground shader renders as transparent anyway.
+# Fork-only option.
 if 'tabs.tiling.border' in configdata.DATA:
     c.tabs.tiling.border = 1
-    config.set('colors.tabs.tiling.border.focused', TOKYODARK['green'])
-    config.set('colors.tabs.tiling.border.unfocused', TOKYODARK['bg3'])
+    config.set('colors.tabs.tiling.border.focused', ICARUS['gold'])
+    config.set('colors.tabs.tiling.border.unfocused', ICARUS['bg4'])
 
 # Vimium C migration (Vivaldi, read live from chrome.storage on 2026-10-09).
 # Each `map KEY createTab url=...` opens URL in a new tab, as there. A bound
